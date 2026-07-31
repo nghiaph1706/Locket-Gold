@@ -131,18 +131,25 @@ TEXTS = {
         "generating_dns": f"{E_SHIELD} Đang tạo Anti-Revoke DNS...",
         "fail_title": f"{E_ERROR} <b>Kích hoạt thất bại</b>",
         "dns_msg": (
-            f"{E_SHIELD} <b>HƯỚNG DẪN CHỐNG MẤT GOLD</b>:\n"
-            f"Để sử dụng ổn định và không bị mất Gold thường xuyên, bạn nên cài đặt DNS theo hướng dẫn bên dưới:\n\n"
-            f"{E_IOS} <b>iOS</b>: <a href='{{}}'>Bấm vào đây để cài</a>\n"
-            f"(Mở bằng <b>Safari</b> -> Cho phép -> Cài đặt Profile)\n\n"
+            f"{E_SHIELD} <b>HƯỚNG DẪN CHỐNG VĂNG GOLD</b>:\n"
+            f"Để giữ Gold ổn định và không bị văng, bạn nên cài DNS này:\n\n"
+            f"{E_IOS} <b>iOS</b>: <a href='{{}}'>Nhấn vào đây để Cài</a>\n"
+            f"(Mở bằng <b>Safari</b> -> Cho phép -> Cài đặt cấu hình)\n\n"
             f"{E_ANDROID} <b>Android</b>: <code>{{}}.dns.nextdns.io</code>\n"
-            f"(Cài đặt → Mạng → Private DNS)\n\n"
-            f"{E_TIP} <b>Lưu ý</b>: Nếu không cài DNS, bạn có thể dùng nút <b>🔄 Refresh Gold</b> mỗi khi bị mất, nhưng sẽ bị giới hạn tối đa 5 lần/ngày!"
+            f"(Cài đặt → Mạng → DNS cá nhân)\n\n"
+            f"{E_TIP} <b>Lưu ý</b>: Nếu không cài DNS, bạn có thể dùng nút <b>🔄 Làm Mới Gold</b> khi bị văng, nhưng chỉ được tối đa 5 lần/ngày!"
         ),
         "bot_full": (
             f"🚫 <b>Hệ thống đã đầy!</b>\n"
-            f"Bot đã đạt số lượng người dùng thử nghiệm tối đa.\n\n"
-            f"💬 Vui lòng <a href='tg://user?id={ADMIN_ID}'>Liên hệ Admin</a> để được hỗ trợ mở rộng."
+            f"Bot đã đạt giới hạn tối đa số lượng người dùng thử nghiệm.\n\n"
+            f"💬 Vui lòng <a href='tg://user?id={ADMIN_ID}'>Liên hệ Admin</a> để được hỗ trợ thêm."
+        ),
+        "coche_msg": (
+            f"🛠 <b>CƠ CHẾ HOẠT ĐỘNG CỦA HỆ THỐNG</b>\n\n"
+            f"<b>1. Tại sao lại lên được Gold?</b>\n"
+            f"Bên mình dùng chung một biên lai mua hàng hợp lệ từ Apple. Khi bạn nhập Locket, bot sẽ gửi biên lai này lên máy chủ Locket thay cho bạn. Locket nhận diện thành công và cấp Gold. Hoàn toàn không cần tài khoản iCloud của bạn!\n\n"
+            f"<b>2. Tại sao cần cài NextDNS?</b>\n"
+            f"Thỉnh thoảng app Locket sẽ kiểm tra chéo với máy chủ Apple xem iCloud của bạn có thật sự đã mua gói không. Nếu kiểm tra thất bại, bạn sẽ mất Gold. NextDNS hoạt động như một lá chắn, chặn app Locket gọi về Apple. Nhờ vậy, trạng thái Gold của bạn sẽ được giữ vĩnh viễn!"
         )
     },
     "EN": {
@@ -208,6 +215,13 @@ TEXTS = {
             f"🚫 <b>System Full!</b>\n"
             f"The bot has reached its maximum capacity of test users.\n\n"
             f"💬 Please <a href='tg://user?id={ADMIN_ID}'>Contact Admin</a> for support."
+        ),
+        "coche_msg": (
+            f"🛠 <b>SYSTEM MECHANISM</b>\n\n"
+            f"<b>1. How do you get Gold?</b>\n"
+            f"We use a shared valid Apple receipt. The bot submits this receipt to Locket's servers on your behalf to unlock Gold. We do NOT need your iCloud account!\n\n"
+            f"<b>2. Why do you need NextDNS?</b>\n"
+            f"Sometimes the Locket app cross-checks with Apple servers. If it does, you will lose Gold. NextDNS acts as a shield, blocking Locket from reaching Apple. This ensures your Gold status remains permanent!"
         )
     }
 }

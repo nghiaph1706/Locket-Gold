@@ -87,6 +87,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     await update.message.reply_text(help_text, parse_mode=ParseMode.HTML)
 
+async def coche_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    lang = db.get_lang(user_id) or DEFAULT_LANG
+    
+    text = T("coche_msg", lang)
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != ADMIN_ID: return
@@ -624,6 +631,7 @@ def run_bot():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("setlang", setlang_command))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("coche", coche_command))
     app.add_handler(CommandHandler("noti", noti_command))
     app.add_handler(CommandHandler("rs", reset_command))
     app.add_handler(CommandHandler("setdonate", set_donate_command))
