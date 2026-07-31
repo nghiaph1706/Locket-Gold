@@ -21,6 +21,11 @@ def init_db():
                     key TEXT PRIMARY KEY,
                     value TEXT
                 )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS linked_accounts (
+                    user_id INTEGER PRIMARY KEY,
+                    locket_uid TEXT,
+                    locket_username TEXT
+                )''')
     c.execute('''CREATE TABLE IF NOT EXISTS request_logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER,
@@ -75,6 +80,21 @@ def get_lang(user_id):
     result = c.fetchone()
     conn.close()
     return result[0] if result else None
+
+def set_linked_account(user_id, uid, username):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO linked_accounts (user_id, locket_uid, locket_username) VALUES (?, ?, ?)", (user_id, uid, username))
+    conn.commit()
+    conn.close()
+
+def get_linked_account(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT locket_uid, locket_username FROM linked_accounts WHERE user_id = ?", (user_id,))
+    result = c.fetchone()
+    conn.close()
+    return {"uid": result[0], "username": result[1]} if result else None
 
 def get_all_users():
     conn = sqlite3.connect(DB_NAME)

@@ -53,7 +53,7 @@ Unlike other basic scripts or tools, this bot is engineered as a **production-gr
 ### Prerequisites
 *   Python 3.9+
 *   Telegram Bot Token via [@BotFather](https://t.me/BotFather)
-*   NextDNS API Key via [NextDNS Developer](https://my.nextdns.io/account)
+*   NextDNS API Key via [NextDNS Developer](https://my.nextdns.io/account) (optional)
 
 ### Automated Setup
 We provide a **one-click setup script** that handles virtual environments and dependencies.
@@ -72,29 +72,38 @@ chmod +x run.sh
 
 ## ⚙️ Configuration
 
-The system is configured via `app/config.py`. You must provide your API keys and Receipt Tokens here.
+Secrets are loaded from a `.env` file. Keep real values out of source control.
 
-```python
-# app/config.py
+1. Copy the example environment file:
+```bash
+cp .env.example .env
+```
 
-# 1. System Credantials
-BOT_TOKEN   = "YOUR_TELEGRAM_BOT_TOKEN_HERE"
-NEXTDNS_KEY = "YOUR_NEXTDNS_API_KEY_HERE"
-ADMIN_ID    = 123456789  # Replace with your Telegram User ID
+2. Edit `.env` with your actual values:
+```bash
+# Required
+BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN_HERE"
 
-# 2. Worker Settings
-# Match this number to the number of Token Sets you have to ensure 1-to-1 mapping.
-NUM_WORKERS = 2 
+# Optional NextDNS integration
+NEXTDNS_KEY=""
+NEXTDNS_ENABLED="false"
 
-# 3. Receipt Tokens (Dumped from Jailbroken/Rooted/Nonjb Devices)
-TOKEN_SETS = [
+# Your Locket Gold Data
+TOKEN_SETS_JSON='[
     {
-        "fetch_token": "ey...",      # RevenueCat Fetch Token
-        "app_transaction": "ey...",  # Apple Receipt Transaction
-        "is_sandbox": False          # Must be False for Production
-    },
-    # Add more token sets as needed...
-]
+        "fetch_token": "...",
+        "app_transaction": "...",
+        "hash_params": "...",
+        "hash_headers": "...",
+        "is_sandbox": false
+    }
+]'
+
+# Worker count (concurrency)
+NUM_WORKERS="1"
+
+# Admin Telegram ID (for bypass and admin commands)
+ADMIN_ID="YOUR_ADMIN_ID"
 ```
 
 ---

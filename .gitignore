@@ -4,5 +4,6 @@ __pycache__/
 .DS_Store
 bot_data.db
 *.log
+.env
 
 # git push -u origin main --force

@@ -1,27 +1,61 @@
+import json
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 NEXTDNS_KEY = os.environ.get("NEXTDNS_KEY", "")
+# NextDNS is enabled by default only when an API key is configured.
+# Set NEXTDNS_ENABLED=false to explicitly disable it even when a key exists.
+NEXTDNS_ENABLED = bool(NEXTDNS_KEY) and os.environ.get(
+    "NEXTDNS_ENABLED", "true"
+).strip().lower() in {"1", "true", "yes", "on"}
 
-TOKEN_SETS = [
-    {
-        "fetch_token": "",
-        "app_transaction": "",
-        "hash_params": "",
-        "hash_headers": "",
-        "is_sandbox": True,
-    },
-    {
-        "fetch_token": "",
-        "app_transaction": "",
-        "hash_params": "",
-        "hash_headers": "",
-        "is_sandbox": False,
-    },
-]
+def _load_token_sets():
+    raw_value = os.environ.get("TOKEN_SETS_JSON", "").strip()
+    if not raw_value:
+        return [
+            {
+                "fetch_token": "",
+                "app_transaction": "",
+                "hash_params": "",
+                "hash_headers": "",
+                "is_sandbox": True,
+            }
+        ]
 
-ADMIN_ID = 6581326766
-NUM_WORKERS = 2
+    try:
+        token_sets = json.loads(raw_value)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("TOKEN_SETS_JSON must be valid JSON") from exc
+
+    if not isinstance(token_sets, list) or not token_sets:
+        raise RuntimeError("TOKEN_SETS_JSON must be a non-empty JSON array")
+
+    normalized_sets = []
+    for index, token_set in enumerate(token_sets, start=1):
+        if not isinstance(token_set, dict):
+            raise RuntimeError(f"TOKEN_SETS_JSON item #{index} must be an object")
+
+        normalized_sets.append(
+            {
+                "fetch_token": str(token_set.get("fetch_token", "")),
+                "app_transaction": str(token_set.get("app_transaction", "")),
+                "hash_params": str(token_set.get("hash_params", "")),
+                "hash_headers": str(token_set.get("hash_headers", "")),
+                "is_sandbox": token_set.get("is_sandbox", True) is True,
+            }
+        )
+
+    return normalized_sets
+
+
+TOKEN_SETS = _load_token_sets()
+
+ADMIN_ID = int(os.environ.get("ADMIN_ID", "6581326766"))
+MAX_USERS = int(os.environ.get("MAX_USERS", "0"))
+NUM_WORKERS = len(TOKEN_SETS)
 DONATE_PHOTO = "AgACAgUAAxkBAAEhBOdpjtu4_D_90mzmM3ax-jLUQbW7HwACjA5rGyK6eFQz2Vzy6zHTMwEAAwIAA3kAAzoE"
 
 E_LOADING = '<tg-emoji emoji-id="5350752364246606166">✍️</tg-emoji>'
@@ -63,11 +97,16 @@ TEXTS = {
             f"<b>{E_TIP} Cách dùng:</b>\n"
             f"1. Bấm nút '🔑 Nhập User Locket'\n"
             f"2. Điền Username hoặc Link\n"
-            f"3. Bot sẽ kiểm tra và kích hoạt Gold."
+            f"3. Bot sẽ kiểm tra và kích hoạt Gold.\n\n"
+            f"⚠️ <b>Lưu ý:</b> Mỗi người dùng chỉ được kích hoạt tối đa <b>5 lần/ngày</b>."
         ),
         "resolving": f"{E_LOADING} <b>Đang phân giải UID...</b>",
         "not_found": f"{E_ERROR} Không tìm thấy User.",
-        "limit_reached": f"{E_LIMIT} Đã đạt giới hạn request (5/5).",
+        "limit_reached": (
+            f"{E_LIMIT} Đã đạt giới hạn tối đa 5/5 lần hôm nay.\n"
+            f"Vui lòng quay lại vào ngày mai nhé!\n\n"
+            f"💬 Nếu muốn tăng giới hạn, hãy <a href='tg://user?id={ADMIN_ID}'>Liên hệ Admin</a>."
+        ),
         "queue_almost": f"{E_LOADING} <b>Sắp đến lượt bạn!</b>\nCòn <b>2 người</b> nữa là đến lượt bạn. Hãy chuẩn bị sẵn sàng! 🚀",
         "admin_noti_sent": f"{E_SUCCESS} Đã gửi thông báo đến tất cả user.",
         "admin_reset": f"{E_SUCCESS} Đã reset lượt dùng cho user {{}}.",
@@ -92,14 +131,18 @@ TEXTS = {
         "generating_dns": f"{E_SHIELD} Đang tạo Anti-Revoke DNS...",
         "fail_title": f"{E_ERROR} <b>Kích hoạt thất bại</b>",
         "dns_msg": (
-            f"{E_SHIELD} <b>HƯỚNG DẪN QUAN TRỌNG</b>:\n"
-            f"1️⃣ Vào App Locket kiểm tra đã có <b>Gold</b> chưa.\n"
-            f"2️⃣ Nếu đã có, tiến hành <b>CÀI DNS NGAY</b> (trong 45s):\n\n"
+            f"{E_SHIELD} <b>HƯỚNG DẪN CHỐNG MẤT GOLD</b>:\n"
+            f"Để sử dụng ổn định và không bị mất Gold thường xuyên, bạn nên cài đặt DNS theo hướng dẫn bên dưới:\n\n"
             f"{E_IOS} <b>iOS</b>: <a href='{{}}'>Bấm vào đây để cài</a>\n"
-            f"(Mở link bằng <b>Safari</b> -> Cho phép -> Cài đặt Profile)\n\n"
+            f"(Mở bằng <b>Safari</b> -> Cho phép -> Cài đặt Profile)\n\n"
             f"{E_ANDROID} <b>Android</b>: <code>{{}}.dns.nextdns.io</code>\n"
             f"(Cài đặt → Mạng → Private DNS)\n\n"
-            f"{E_TIP} <b>Lưu ý</b>: Bắt buộc cài DNS để không bị mất Gold!"
+            f"{E_TIP} <b>Lưu ý</b>: Nếu không cài DNS, bạn có thể dùng nút <b>🔄 Refresh Gold</b> mỗi khi bị mất, nhưng sẽ bị giới hạn tối đa 5 lần/ngày!"
+        ),
+        "bot_full": (
+            f"🚫 <b>Hệ thống đã đầy!</b>\n"
+            f"Bot đã đạt số lượng người dùng thử nghiệm tối đa.\n\n"
+            f"💬 Vui lòng <a href='tg://user?id={ADMIN_ID}'>Liên hệ Admin</a> để được hỗ trợ mở rộng."
         )
     },
     "EN": {
@@ -119,11 +162,16 @@ TEXTS = {
             f"<b>{E_TIP} How to use:</b>\n"
             f"1. Click '🔑 Input Locket User'\n"
             f"2. Enter Username or Link\n"
-            f"3. Bot will activate Gold."
+            f"3. Bot will activate Gold.\n\n"
+            f"⚠️ <b>Note:</b> You can only activate max <b>5 times/day</b>."
         ),
         "resolving": f"{E_LOADING} <b>Resolving UID...</b>",
         "not_found": f"{E_ERROR} User not found.",
-        "limit_reached": f"{E_LIMIT} Daily limit reached (5/5).",
+        "limit_reached": (
+            f"{E_LIMIT} You have reached the daily limit (5/5).\n"
+            f"Please come back tomorrow!\n\n"
+            f"💬 To increase your limit, please <a href='tg://user?id={ADMIN_ID}'>Contact Admin</a>."
+        ),
         "queue_almost": f"{E_LOADING} <b>Almost your turn!</b>\n<b>2 people</b> ahead of you. Get ready! 🚀",
         "admin_noti_sent": f"{E_SUCCESS} Notification sent to all users.",
         "admin_reset": f"{E_SUCCESS} Usage reset for user {{}}.",
@@ -148,17 +196,22 @@ TEXTS = {
         "generating_dns": f"{E_SHIELD} Generating Anti-Revoke DNS...",
         "fail_title": f"{E_ERROR} <b>Activation Failed</b>",
         "dns_msg": (
-            f"{E_SHIELD} <b>IMPORTANT INSTRUCTIONS</b>:\n"
-            f"1️⃣ Check Locket App for <b>Gold</b> status.\n"
-            f"2️⃣ If active, <b>INSTALL DNS IMMEDIATELY</b> (within 45s):\n\n"
+            f"{E_SHIELD} <b>ANTI-REVOKE INSTRUCTIONS</b>:\n"
+            f"To keep Gold stable and prevent frequent revokes, you should install this DNS:\n\n"
             f"{E_IOS} <b>iOS</b>: <a href='{{}}'>Click to Install</a>\n"
-            f"(Open link in <b>Safari</b> -> Allow -> Install Profile)\n\n"
+            f"(Open in <b>Safari</b> -> Allow -> Install Profile)\n\n"
             f"{E_ANDROID} <b>Android</b>: <code>{{}}.dns.nextdns.io</code>\n"
             f"(Settings → Network → Private DNS)\n\n"
-            f"{E_TIP} <b>Note</b>: DNS is required to keep Gold active!"
+            f"{E_TIP} <b>Note</b>: If you don't install DNS, you can use the <b>🔄 Refresh Gold</b> button when revoked, but it's limited to 5 times/day!"
+        ),
+        "bot_full": (
+            f"🚫 <b>System Full!</b>\n"
+            f"The bot has reached its maximum capacity of test users.\n\n"
+            f"💬 Please <a href='tg://user?id={ADMIN_ID}'>Contact Admin</a> for support."
         )
     }
 }
+
 
 def T(key, lang=None):
     if not lang:

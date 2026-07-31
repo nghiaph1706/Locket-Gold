@@ -6,7 +6,7 @@ from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from app.config import *
 from app import database as db
-from app.services import locket, nextdns
+from app.services import locket
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +53,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     lang = db.get_lang(user_id) or DEFAULT_LANG
     
+    if MAX_USERS > 0 and user_id != ADMIN_ID:
+        all_users = db.get_all_users()
+        if user_id not in all_users and len(all_users) >= MAX_USERS:
+            await update.message.reply_text(T("bot_full", lang), parse_mode=ParseMode.HTML)
+            return
+
     if not db.get_user_usage(user_id):
         pass 
 
     await update.message.reply_text(
         T("welcome", lang),
         parse_mode=ParseMode.HTML,
-        reply_markup=get_main_menu_keyboard(lang)
+        reply_markup=get_main_menu_keyboard(lang, user_id)
     )
 
 async def setlang_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -231,6 +237,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     lang = db.get_lang(user_id) or DEFAULT_LANG
 
+    if MAX_USERS > 0 and user_id != ADMIN_ID:
+        all_users = db.get_all_users()
+        if user_id not in all_users and len(all_users) >= MAX_USERS:
+            await update.message.reply_text(T("bot_full", lang), parse_mode=ParseMode.HTML)
+            return
+
     if "locket.cam/" in text:
         username = text.split("locket.cam/")[-1].split("?")[0]
     elif len(text) < 50 and " " not in text:
@@ -285,7 +297,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.edit_text(
             T("menu_msg", lang),
             parse_mode=ParseMode.HTML,
-            reply_markup=get_main_menu_keyboard(lang)
+            reply_markup=get_main_menu_keyboard(lang, user_id)
         )
         return
 
@@ -315,11 +327,71 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.edit_text(
             T("menu_msg", lang),
             parse_mode=ParseMode.HTML,
-            reply_markup=get_main_menu_keyboard(lang)
+            reply_markup=get_main_menu_keyboard(lang, user_id)
         )
         return
 
+    if data == "menu_refresh":
+        linked = db.get_linked_account(user_id)
+        if not linked:
+            await query.answer("No linked account found.", show_alert=True)
+            return
+            
+        uid = linked["uid"]
+        username = linked["username"]
+        
+        if user_id != ADMIN_ID and not db.check_can_request(user_id):
+            try:
+                await query.answer(T("limit_reached", lang), show_alert=True)
+            except:
+                pass
+            return
+            
+
+            
+        status = await locket.check_status(uid)
+        if status and status.get("active"):
+            try:
+                await query.answer("Tài khoản này hiện vẫn đang có Gold, không cần Refresh!", show_alert=True)
+            except:
+                pass
+            return
+
+        try:
+            await query.answer("🚀 Queue...")
+        except:
+            pass
+        
+        item = {
+            'user_id': user_id,
+            'uid': uid,
+            'username': username,
+            'chat_id': query.message.chat_id,
+            'message_id': query.message.message_id,
+            'lang': lang
+        }
+        
+        async with queue_lock:
+            pending_items.append(item)
+            position = len(pending_items)
+            ahead = position - 1
+        
+        await query.message.edit_text(
+            T("queued", lang).format(username, position, ahead),
+            parse_mode=ParseMode.HTML
+        )
+        
+        await request_queue.put(item)
+        return
+
     if data == "menu_input":
+        if MAX_USERS > 0 and user_id != ADMIN_ID:
+            all_users = db.get_all_users()
+            if user_id not in all_users and len(all_users) >= MAX_USERS:
+                await query.answer("🚫 HỆ THỐNG ĐÃ ĐẦY!", show_alert=True)
+                await query.message.reply_text(T("bot_full", lang), parse_mode=ParseMode.HTML)
+                return
+                
         try:
             await query.answer()
         except:
@@ -340,6 +412,16 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id != ADMIN_ID and not db.check_can_request(user_id):
             try:
                 await query.answer(T("limit_reached", lang), show_alert=True)
+            except:
+                pass
+            return
+            
+
+            
+        status = await locket.check_status(uid)
+        if status and status.get("active"):
+            try:
+                await query.answer("Tài khoản này hiện vẫn đang có Gold, không cần kích hoạt lại!", show_alert=True)
             except:
                 pass
             return
@@ -455,16 +537,20 @@ async def queue_worker(app, worker_id):
             db.log_request(user_id, uid, "SUCCESS" if success else "FAIL")
             
             if success:
+                db.set_linked_account(user_id, uid, username)
                 if user_id != ADMIN_ID:
                     db.increment_usage(user_id)
                     
-                pid, link = await nextdns.create_profile(NEXTDNS_KEY, safe_log_callback)
-                
                 dns_text = ""
-                if link:
-                   dns_text = T('dns_msg', lang).format(link, pid)
-                else:
-                   dns_text = f"{E_ERROR} NextDNS Error: Check API Key"
+                if NEXTDNS_ENABLED:
+                    # Import lazily so a disabled NextDNS integration has no runtime activity.
+                    from app.services import nextdns
+
+                    pid, link = await nextdns.create_profile(NEXTDNS_KEY, safe_log_callback)
+                    if link:
+                        dns_text = T('dns_msg', lang).format(link, pid)
+                    else:
+                        dns_text = f"{E_ERROR} NextDNS Error: Check API Key"
                 
                 final_msg = (
                     f"{T('success_title', lang)}\n\n"
@@ -512,12 +598,17 @@ async def queue_worker(app, worker_id):
             logger.error(f"Worker #{worker_id} Exception: {e}")
             request_queue.task_done()
 
-def get_main_menu_keyboard(lang):
-    return InlineKeyboardMarkup([
+def get_main_menu_keyboard(lang, user_id=None):
+    buttons = [
         [InlineKeyboardButton(T("btn_input", lang), callback_data="menu_input")],
         [InlineKeyboardButton(T("btn_lang", lang), callback_data="menu_lang"),
          InlineKeyboardButton(T("btn_help", lang), callback_data="menu_help")]
-    ])
+    ]
+    if user_id:
+        linked = db.get_linked_account(user_id)
+        if linked:
+            buttons.insert(1, [InlineKeyboardButton(f"🔄 Refresh Gold ({linked['username']})", callback_data="menu_refresh")])
+    return InlineKeyboardMarkup(buttons)
 
 def run_bot():
     logging.basicConfig(
