@@ -3,6 +3,7 @@ import json
 import re
 import time
 import asyncio
+from datetime import datetime, timezone
 from app.config import TOKEN_SETS # Import new structure
 
 HEADERS = {
@@ -90,6 +91,13 @@ async def check_status(uid):
                     entitlements = data.get('subscriber', {}).get('entitlements', {}).get('Gold', {})
                     if entitlements:
                         expires_date = entitlements.get('expires_date')
+                        if expires_date:
+                            try:
+                                exp_dt = datetime.strptime(expires_date, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                                if datetime.now(timezone.utc) >= exp_dt:
+                                    return {"active": False}
+                            except Exception:
+                                pass
                         return {"active": True, "expires": expires_date}
                     return {"active": False}
                 return {"active": False}
