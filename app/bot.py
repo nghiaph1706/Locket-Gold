@@ -3,7 +3,7 @@ import logging
 import random
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ForceReply
 from telegram.constants import ParseMode
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters, TypeHandler, ApplicationHandlerStop
 from app.config import *
 from app import database as db
 from app.services import locket
@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 request_queue = asyncio.Queue()
 pending_items = []
 queue_lock = asyncio.Lock()
+
+
 
 class Clr:
     HEADER = '\033[95m'
@@ -112,6 +114,49 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"⏳ <b>Queue Size</b>: {request_queue.qsize()}\n"
     )
     await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
+
+async def check_maintenance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    is_maintenance = db.get_config("maintenance_mode", "0") == "1"
+    if not is_maintenance:
+        return
+        
+    user_id = update.effective_user.id if update.effective_user else None
+    if user_id == ADMIN_ID:
+        return
+        
+    maintenance_msg = db.get_config("maintenance_msg", "Bot đang bảo trì, vui lòng quay lại sau.")
+    if update.message:
+        await update.message.reply_text(f"🚧 {maintenance_msg}")
+    elif update.callback_query:
+        await update.callback_query.answer(f"🚧 {maintenance_msg}", show_alert=True)
+        
+    raise ApplicationHandlerStop()
+
+async def mt_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    
+    if user_id != ADMIN_ID:
+        return
+        
+    is_maintenance = db.get_config("maintenance_mode", "0") == "1"
+        
+    if not context.args:
+        status = "BẬT" if is_maintenance else "TẮT"
+        await update.message.reply_text(f"🚧 Maintenance Mode: {status}\n\nCách dùng:\n`/mt on [lời nhắn]` - Bật bảo trì\n`/mt off` - Tắt bảo trì", parse_mode=ParseMode.MARKDOWN)
+        return
+        
+    cmd = context.args[0].lower()
+    if cmd == "on":
+        db.set_config("maintenance_mode", "1")
+        if len(context.args) > 1:
+            msg = " ".join(context.args[1:])
+        else:
+            msg = "Bot đang bảo trì, vui lòng quay lại sau."
+        db.set_config("maintenance_msg", msg)
+        await update.message.reply_text(f"✅ Đã bật chế độ bảo trì.\nLời nhắn: {msg}")
+    elif cmd == "off":
+        db.set_config("maintenance_mode", "0")
+        await update.message.reply_text("✅ Đã tắt chế độ bảo trì.")
 
 # --- Admin Commands ---
 async def broadcast_worker(bot, users, text, chat_id, message_id):
@@ -628,7 +673,10 @@ def run_bot():
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     
+    app.add_handler(TypeHandler(Update, check_maintenance), group=-1)
+    
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("mt", mt_command))
     app.add_handler(CommandHandler("setlang", setlang_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("coche", coche_command))
